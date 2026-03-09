@@ -8,10 +8,14 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
         self.ids = []
         self.vocab_size = None
 
-    def mostfreq(self, tokens):
+        #from GPT-4, raw string of splited raw text 
+        self.ptr = re.compile(r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+""")
+
+    def mostfreq(self, chunks):
         counts = {}
-        for pair in zip(tokens, tokens[1:]):
-            counts[pair] = counts.get(pair, 0) + 1
+        for tokens in chunks:
+            for pair in zip(tokens, tokens[1:]):
+                counts[pair] = counts.get(pair, 0) + 1
         return counts
     
     def merge(self, ids, pair, idx):
@@ -26,31 +30,25 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
                 i+=1
         return newids
     
-    def pretok(self, text):
-        #from GPT-4, raw string of splited raw text 
-        ptr = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
-        out = re.compile(ptr)
-        return re.findall(out, text) #cs336 suggests using re.finditer but I dont want to read that shitty documentation again 
-
 
     def train(self, text, vocab_size, verbose=False):
         
         self.vocab_size = vocab_size
         
-        text = "".join(self.pretok(text))
-
-        tokens = text.encode('utf-8')
-        tokens = list(map(int, tokens))
-        num_merges = vocab_size  - 256
-        self.ids = list(tokens)
+        chunks = re.findall(self.ptr, text) #cs336 suggests using re.finditer but I dont want to read that shitty documentation again 
+        chunks = [list(chunk.encode('utf-8')) for chunk in chunks]
+        
+        num_merges = vocab_size - 256
 
         for i in range(num_merges):
-            stats = self.mostfreq(self.ids)
+            stats = self.mostfreq(chunks)
+            if not stats:
+                break
             pair = max(stats, key = stats.get)
             idx = 256 + i
             if verbose:
                 print(f"merge {pair} into {idx}")
-            self.ids = self.merge(self.ids, pair, idx)
+            chunks = [self.merge(chunk, pair, idx) for chunk in chunks]
             self.merges[pair] = idx
         
         self.vocab = {idx: bytes([idx]) for idx in range(256)}
@@ -65,12 +63,18 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
         return text
     
     def encode(self, text):
-        tokens = list(text.encode('utf-8'))
-        while len(tokens) >= 2:
-            stats = self.mostfreq(tokens)
-            pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
-            if pair not in self.merges:
-                break
-            idx = self.merges[pair]
-            tokens = self.merge(tokens, pair, idx)
-        return tokens
+        chunks = re.findall(self.ptr, text)
+        result = []
+        for chunk in chunks:
+            tokens = list(chunk.encode('utf-8'))
+            while len(tokens) >= 2:
+                stats = {}
+                for pair in zip(tokens, tokens[1:]):
+                    stats[pair] = stats.get(pair, 0) + 1
+                pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
+                if pair not in self.merges:
+                    break
+                idx = self.merges[pair]
+                tokens = self.merge(tokens, pair, idx)
+            result.extend(tokens)
+        return result
