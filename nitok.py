@@ -1,4 +1,4 @@
-
+import regex as re
 
 class Tokenizer: #not the brightest when it comes to OOPS I suppose
     
@@ -6,6 +6,7 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
         self.vocab = {}
         self.merges = {}
         self.ids = []
+        self.vocab_size = None
 
     def mostfreq(tokens):
         counts = {}
@@ -25,7 +26,18 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
                 i+=1
         return newids
     
+    def pretok(text):
+        #from GPT-4, raw string of splited raw text 
+        ptr = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
+        out = re.compile(ptr)
+        return re.findall(out, text) #cs336 suggests using re.finditer but I dont want to read that shitty documentation again 
+
+
     def train(self, text, vocab_size, verbose=False):
+        
+        self.vocab_size = vocab_size
+        
+        text = pretok(text)
 
         tokens = text.encode('utf-8')
         tokens = list(map(int, tokens))
