@@ -1,5 +1,4 @@
 import regex as re
-import pretokenization_example
 class Tokenizer: #not the brightest when it comes to OOPS I suppose
     
   def __init__(self):
@@ -18,11 +17,16 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
 
 
   def mostfreq(self, chunks):
-    counts = {}
+    import collections
+    counts = collections.Counter()
     for tokens in chunks:
-      for pair in zip(tokens, tokens[1:]):
-        counts[pair] = counts.get(pair, 0) + 1
-    return counts
+      counts.update(zip(tokens, tokens[1:]))
+    return dict(counts)
+
+
+  def _pair_counts(self, tokens):
+    import collections
+    return dict(collections.Counter(zip(tokens, tokens[1:])))
   
 
   def merge(self, ids, pair, idx):
@@ -42,28 +46,63 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
     
     self.vocab_size = vocab_size
 
-    num_processes = 4
-    boundaries = find_chunk_boundaries(text, num_processes, b"<|endoftext|>")
-
-    processes = []
-
-    for start, end in zip(boundaries[:-1], boundaries[1:]):
-      text.seek(start)
-      chunk = f.read(end - start).decode("utf-8", errors="ignore")
     chunks = self.ptr.findall(text) #cs336 suggests using re.finditer but I dont want to read that shitty documentation again 
     chunks = [list(chunk.encode('utf-8')) for chunk in chunks if chunk not in self.special_tokens]
+
+    stats = {}
+    pair_to_chunks = {}
+    chunk_pair_counts = []
+
+    for i, chunk in enumerate(chunks):
+      counts = self._pair_counts(chunk)
+      chunk_pair_counts.append(counts)
+      for pair, count in counts.items():
+        stats[pair] = stats.get(pair, 0) + count
+        pair_to_chunks.setdefault(pair, set()).add(i)
     
     num_merges = vocab_size - (256 + self.num_special)
 
     for i in range(num_merges):
-      stats = self.mostfreq(chunks)
       if not stats:
         break
       pair = max(stats, key = stats.get)
       idx = (256 + self.num_special) + i
       if verbose:
         print(f"merge {pair} into {idx}")
-      chunks = [self.merge(chunk, pair, idx) for chunk in chunks]
+
+      affected = list(pair_to_chunks.get(pair, set()))
+      if not affected:
+        stats.pop(pair, None)
+        continue
+
+      for chunk_idx in affected:
+        old_counts = chunk_pair_counts[chunk_idx]
+        old_chunk = chunks[chunk_idx]
+        new_chunk = self.merge(old_chunk, pair, idx)
+
+        if new_chunk == old_chunk:
+          continue
+
+        for old_pair, old_count in old_counts.items():
+          new_total = stats.get(old_pair, 0) - old_count
+          if new_total <= 0:
+            stats.pop(old_pair, None)
+          else:
+            stats[old_pair] = new_total
+
+          if old_pair in pair_to_chunks:
+            pair_to_chunks[old_pair].discard(chunk_idx)
+            if not pair_to_chunks[old_pair]:
+              pair_to_chunks.pop(old_pair)
+
+        new_counts = self._pair_counts(new_chunk)
+        for new_pair, new_count in new_counts.items():
+          stats[new_pair] = stats.get(new_pair, 0) + new_count
+          pair_to_chunks.setdefault(new_pair, set()).add(chunk_idx)
+
+        chunks[chunk_idx] = new_chunk
+        chunk_pair_counts[chunk_idx] = new_counts
+
       self.merges[pair] = idx
     
     self.vocab.update({idx: bytes([idx]) for idx in range(256)})
@@ -92,12 +131,8 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
       tokens = list(chunk.encode('utf-8'))
 
       while len(tokens) >= 2:
-        stats = {}
-
-        for pair in zip(tokens, tokens[1:]):
-          stats[pair] = stats.get(pair, 0) + 1
-
-        pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
+        pairs = list(zip(tokens, tokens[1:]))
+        pair = min(pairs, key=lambda p: self.merges.get(p, float("inf")))
 
         if pair not in self.merges:
           break
@@ -105,7 +140,7 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
         idx = self.merges[pair]
         tokens = self.merge(tokens, pair, idx)
             
-        result.extend(tokens)
+      result.extend(tokens)
 
     return result
   
