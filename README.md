@@ -10,10 +10,8 @@ based on GPT-2 and GPT-4 tokenizer
 - `def encode(self, text)`
 - `def decode(self, ids)`
 
-### Train text
-
-`1984.txt`
-
-1984 by George Orwell in a single line of text
-
-taken from https://www.textfixer.com/tools/paragraph-to-lines.php
+## its extremely memory heavy
+22MB of tinystories validation set takes about 1.9GB of memory
+about 2GB of training set completely fills and crashes upto 47GB ram machine
+I believe this is only during pretokenization and training
+still its not worth using in any project scenario, will be shifting to huggingface tokenizer
