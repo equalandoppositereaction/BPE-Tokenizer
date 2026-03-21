@@ -1,5 +1,5 @@
 # BPE-Tokenizer
-
+The BPE-old branch has all my code, in the main branch I tried to optimise it with copilot but that was still slow as hell
 ## nitok
 nitin + tokenizer :)
 
