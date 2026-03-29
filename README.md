@@ -1,14 +1,19 @@
-# BPE-Tokenizer
+#nitok
 
-## nitok
 nitin + tokenizer :)
 
-based on GPT-2 and GPT-4 tokenizer 
+This is based on the GPT-4 tiktokenizer 
+
+I originally planed to make the the original tokenizer for Dumbo
+but it was extreamly slow, memory intensive and single threaded so
+I switched to using sentencepiece instead
 
 `nitok.py`
-- `def train(self, text, vocab_size, verbose=False)`
-- `def encode(self, text)`
-- `def decode(self, ids)`
+- `train(text, vocab_size, verbose=False)`
+- `encode(text)`
+- `decode(ids)`
+- `save(filename="merges.model")`
+- `load(filename="merges.model")`
 
 ### Train text
 
