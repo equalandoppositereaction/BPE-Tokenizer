@@ -74,3 +74,21 @@ class Tokenizer: #not the brightest when it comes to OOPS I suppose
             idx = self.merges[pair]
             tokens = self.merge(tokens, pair, idx)
         return tokens
+    
+    def save(self, filename="merges.model"):
+        with open(filename, 'w', encoding="utf-8") as f:
+            for (p0, p1), idx in self.merges.items():
+                f.write(f"{p0} {p1} {idx}\n")
+            print(f"saved to {filename}")
+  
+    def load(self, filename="merges.model"):
+        with open(filename, 'r', encoding='utf-8') as f:
+            for line in f:
+                p0, p1, idx = map(int, line.split())
+                self.merges[(p0, p1)] = idx
+
+        for (p0, p1), idx in self.merges.items():
+            self.vocab[idx] = self.vocab[p0] + self.vocab[p1]
+        
+        self.vocab_size = len(self.vocab)
+        print(f"Loaded vocab from {filename}")
